@@ -14,6 +14,23 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    partnerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    xp: {
+      type: Number,
+      default: 0,
+    },
+    streak: {
+      type: Number,
+      default: 0,
+    },
+    lastStreakDate: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

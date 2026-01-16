@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-const DB_NAME = "datingapp";
+const DB_NAME = "tracker";
 
 const connectDB = async () => {
   try {

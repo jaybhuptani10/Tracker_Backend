@@ -110,8 +110,8 @@ const userProfile = asyncHandler(async (req, res) => {
           message: "User not found",
         });
       }
-      const { name, email, id } = user;
-      res.json({ name, email, id });
+      const { name, email, _id, partnerId } = user;
+      res.json({ name, email, id: _id, partnerId });
     });
   } catch (e) {
     console.error("Server error:", e);
@@ -145,4 +145,65 @@ const validateToken = asyncHandler(async (req, res) => {
   });
 });
 
-export { logoutUser, loginUser, userProfile, registerUser, validateToken };
+// Link Partner
+const linkPartner = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const { id } = req.user; // Assuming auth middleware adds user to req
+
+  if (!email) {
+    return res.status(400).json(new ApiResponse(false, "Email is required"));
+  }
+
+  const partner = await userModel.findOne({ email });
+  if (!partner) {
+    return res.status(404).json(new ApiResponse(false, "User not found"));
+  }
+
+  if (partner._id.toString() === id) {
+    return res
+      .status(400)
+      .json(new ApiResponse(false, "You cannot link with yourself"));
+  }
+
+  // Update current user
+  await userModel.findByIdAndUpdate(id, { partnerId: partner._id });
+
+  // Update partner (bidirectional link)
+  await userModel.findByIdAndUpdate(partner._id, { partnerId: id });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(true, "Partner linked successfully"));
+});
+
+// Unlink Partner
+const unlinkPartner = asyncHandler(async (req, res) => {
+  const { id } = req.user;
+  const user = await userModel.findById(id);
+
+  if (!user || !user.partnerId) {
+    return res.status(400).json(new ApiResponse(false, "No partner linked"));
+  }
+
+  const partnerId = user.partnerId;
+
+  // Unlink current user
+  await userModel.findByIdAndUpdate(id, { $unset: { partnerId: "" } });
+
+  // Unlink partner
+  await userModel.findByIdAndUpdate(partnerId, { $unset: { partnerId: "" } });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(true, "Partner unlinked successfully"));
+});
+
+export {
+  logoutUser,
+  loginUser,
+  userProfile,
+  registerUser,
+  validateToken,
+  linkPartner,
+  unlinkPartner,
+};
