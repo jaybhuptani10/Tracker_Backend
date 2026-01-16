@@ -11,7 +11,8 @@ const registerUser = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("Please fill all the fields");
   }
-  const existedUser = await userModel.findOne({ $or: [{ email }] });
+  const emailLower = email.toLowerCase();
+  const existedUser = await userModel.findOne({ $or: [{ email: emailLower }] });
   if (existedUser) {
     return res.status(400).json({
       success: false,
@@ -20,7 +21,7 @@ const registerUser = asyncHandler(async (req, res) => {
   }
   const newUser = await userModel.create({
     name,
-    email,
+    email: emailLower,
     password: bcrypt.hashSync(password, 10),
   });
   const createdUser = await userModel
@@ -44,7 +45,8 @@ const loginUser = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error("Please fill all the fields");
   }
-  const userDoc = await userModel.findOne({ email });
+  const emailLower = email.toLowerCase();
+  const userDoc = await userModel.findOne({ email: emailLower });
   if (userDoc) {
     const pass = bcrypt.compareSync(password, userDoc.password);
     if (pass) {
@@ -154,7 +156,7 @@ const linkPartner = asyncHandler(async (req, res) => {
     return res.status(400).json(new ApiResponse(false, "Email is required"));
   }
 
-  const partner = await userModel.findOne({ email });
+  const partner = await userModel.findOne({ email: email.toLowerCase() });
   if (!partner) {
     return res.status(404).json(new ApiResponse(false, "User not found"));
   }
