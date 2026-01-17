@@ -6,7 +6,8 @@ import { sendEmail } from "../utils/mailer.js";
 import { getEmailTemplate } from "../utils/emailTemplate.js";
 
 const createTask = asyncHandler(async (req, res) => {
-  const { content, category, date, isRecurring, recurrence } = req.body;
+  const { content, category, date, isRecurring, recurrence, isShared } =
+    req.body;
   const { id } = req.user;
 
   if (!content) {
@@ -50,6 +51,7 @@ const createTask = asyncHandler(async (req, res) => {
           userId: id,
           isRecurring: true,
           recurrence,
+          isShared: isShared || false,
         });
       }
 
@@ -77,6 +79,7 @@ const createTask = asyncHandler(async (req, res) => {
       date: taskDate,
       userId: id,
       isRecurring: false,
+      isShared: Boolean(isShared),
     });
 
     return res
@@ -89,11 +92,28 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const { isCompleted } = req.body;
 
-  const task = await Task.findByIdAndUpdate(id, { isCompleted }, { new: true });
+  const task = await Task.findById(id);
 
   if (!task) {
     return res.status(404).json(new ApiResponse(false, "Task not found"));
   }
+
+  // Authorization: owner can always update, partner can update if task is shared
+  const user = await userModel.findById(req.user.id);
+  const isOwner = task.userId.toString() === req.user.id;
+  const isPartnerOfSharedTask =
+    task.isShared &&
+    user.partnerId &&
+    task.userId.toString() === user.partnerId.toString();
+
+  if (!isOwner && !isPartnerOfSharedTask) {
+    return res
+      .status(403)
+      .json(new ApiResponse(false, "Not authorized to update this task"));
+  }
+
+  task.isCompleted = isCompleted;
+  await task.save();
 
   // Gamification & Notification Logic
   if (isCompleted) {
@@ -184,21 +204,31 @@ const getDashboard = asyncHandler(async (req, res) => {
   const startOfDay = new Date(queryDate.setHours(0, 0, 0, 0));
   const endOfDay = new Date(queryDate.setHours(23, 59, 59, 999));
 
-  // Fetch my tasks
+  // Fetch my tasks (non-shared)
   const myTasks = await Task.find({
     userId: id,
+    isShared: { $ne: true }, // Include false or missing
     date: { $gte: startOfDay, $lte: endOfDay },
   });
 
   // Fetch partner's tasks if partner exists
   let partnerTasks = [];
   let partner = null;
+  let sharedTasks = [];
 
   if (user.partnerId) {
     partnerTasks = await Task.find({
       userId: user.partnerId,
+      isShared: { $ne: true }, // Include false or missing
       date: { $gte: startOfDay, $lte: endOfDay },
     });
+
+    // Fetch shared tasks (Common Goals - persistent, not date-bound)
+    // Fetch all incomplete shared tasks + completed ones from today
+    sharedTasks = await Task.find({
+      isShared: true,
+      $or: [{ userId: id }, { userId: user.partnerId }],
+    }).sort({ createdAt: -1 });
 
     // Also fetch partner details (name, streak)
     const partnerUser = await userModel
@@ -214,6 +244,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       myTasks,
       partnerTasks,
       partner,
+      sharedTasks,
     }),
   );
 });
@@ -284,6 +315,41 @@ const addTaskComment = asyncHandler(async (req, res) => {
     .json(new ApiResponse(true, "Comment added successfully", task));
 });
 
+const addSubtask = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { content } = req.body;
+
+  if (!content) {
+    return res.status(400).json(new ApiResponse(false, "Content is required"));
+  }
+
+  const task = await Task.findById(id);
+  if (!task)
+    return res.status(404).json(new ApiResponse(false, "Task not found"));
+
+  task.subtasks.push({ content, isCompleted: false });
+  await task.save();
+
+  return res.status(200).json(new ApiResponse(true, "Subtask added", task));
+});
+
+const toggleSubtask = asyncHandler(async (req, res) => {
+  const { id, subtaskId } = req.params;
+
+  const task = await Task.findById(id);
+  if (!task)
+    return res.status(404).json(new ApiResponse(false, "Task not found"));
+
+  const subtask = task.subtasks.id(subtaskId);
+  if (!subtask)
+    return res.status(404).json(new ApiResponse(false, "Subtask not found"));
+
+  subtask.isCompleted = !subtask.isCompleted;
+  await task.save();
+
+  return res.status(200).json(new ApiResponse(true, "Subtask updated", task));
+});
+
 export {
   createTask,
   updateTask,
@@ -291,4 +357,6 @@ export {
   getDashboard,
   deleteTask,
   addTaskComment,
+  addSubtask,
+  toggleSubtask,
 };

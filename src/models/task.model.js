@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 
 const taskSchema = new mongoose.Schema(
+  // Schema definition for Tasks including Shared Goals
   {
     content: {
       type: String,
@@ -32,6 +33,12 @@ const taskSchema = new mongoose.Schema(
         createdAt: { type: Date, default: Date.now },
       },
     ],
+    subtasks: [
+      {
+        content: { type: String, required: true },
+        isCompleted: { type: Boolean, default: false },
+      },
+    ],
     isRecurring: {
       type: Boolean,
       default: false,
@@ -50,6 +57,15 @@ const taskSchema = new mongoose.Schema(
         type: Date,
         default: null,
       },
+    },
+    isShared: {
+      type: Boolean,
+      default: false,
+    },
+    sharedWith: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   { timestamps: true },

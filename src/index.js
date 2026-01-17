@@ -21,12 +21,7 @@ const startServer = async () => {
     });
 
     io.on("connection", (socket) => {
-      console.log("New client connected:", socket.id);
-
       socket.on("join", ({ userId, partnerId }) => {
-        console.log(
-          `User ${userId} joined via socket ${socket.id}. Partner: ${partnerId}`,
-        );
         socket.join(userId);
         socket.userId = userId;
         socket.partnerId = partnerId;
@@ -34,17 +29,12 @@ const startServer = async () => {
         // Notify partner I am online
         if (partnerId) {
           io.to(partnerId).emit("user_online", { userId });
-          console.log(`Emitted user_online to room ${partnerId}`);
 
           // Check if partner is already online
           const partnerSockets = io.sockets.adapter.rooms.get(partnerId);
-          console.log(
-            `Checking if partner ${partnerId} is online. Room size: ${partnerSockets?.size || 0}`,
-          );
 
           if (partnerSockets && partnerSockets.size > 0) {
             socket.emit("user_online", { userId: partnerId });
-            console.log(`Partner ${partnerId} is online, notifying ${userId}`);
           }
         }
       });
@@ -63,7 +53,6 @@ const startServer = async () => {
             userId: socket.userId,
           });
         }
-        console.log("Client disconnected:", socket.id);
       });
     });
 
