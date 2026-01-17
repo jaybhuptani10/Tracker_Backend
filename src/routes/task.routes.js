@@ -4,6 +4,7 @@ import {
   updateTaskStatus,
   getDashboard,
   deleteTask,
+  addTaskComment,
 } from "../controllers/task.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -15,5 +16,6 @@ taskRouter.route("/").post(createTask);
 taskRouter.route("/dashboard").get(getDashboard);
 taskRouter.route("/:id/status").patch(updateTaskStatus);
 taskRouter.route("/:id").delete(deleteTask);
+taskRouter.route("/:id/comment").post(addTaskComment);
 
 export default taskRouter;

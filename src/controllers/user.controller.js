@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { ApiResponse } from "../utils/apiresponse.js";
 import userModel from "../models/user.model.js";
+import { sendEmail } from "../utils/mailer.js";
+import { getEmailTemplate } from "../utils/emailTemplate.js";
 
 // Register User
 const registerUser = asyncHandler(async (req, res) => {
@@ -63,7 +65,7 @@ const loginUser = asyncHandler(async (req, res) => {
               sameSite: "None", // Required for cross-site cookies
             })
             .json({ token, user: userDoc }); // Include token in response
-        }
+        },
       );
     } else {
       return res.status(400).json({
@@ -195,9 +197,63 @@ const unlinkPartner = asyncHandler(async (req, res) => {
   // Unlink partner
   await userModel.findByIdAndUpdate(partnerId, { $unset: { partnerId: "" } });
 
-  return res
-    .status(200)
-    .json(new ApiResponse(true, "Partner unlinked successfully"));
+  return res.json(new ApiResponse(true, "Partner unlinked successfully"));
+});
+
+// Send Nudge
+const sendNudge = asyncHandler(async (req, res) => {
+  const { message } = req.body;
+  const { id } = req.user;
+  const user = await userModel.findById(id);
+
+  if (!user.partnerId) {
+    return res.status(400).json(new ApiResponse(false, "No partner linked"));
+  }
+
+  const partner = await userModel.findById(user.partnerId);
+  if (!partner) {
+    return res.status(404).json(new ApiResponse(false, "Partner not found"));
+  }
+
+  // Save nudge to partner's record
+  await userModel.findByIdAndUpdate(partner._id, {
+    lastNudge: {
+      message,
+      from: user.name,
+      timestamp: new Date(),
+      seen: false,
+    },
+  });
+
+  // Send Email
+  const emailHtml = getEmailTemplate({
+    title: `👋 ${user.name} says...`,
+    body: `
+      <div style="text-align: center; font-size: 24px; font-weight: bold; color: #6366f1; margin: 30px 0;">
+        "${message}"
+      </div>
+      <p style="text-align: center;">Open the app to reply!</p>
+      <div style="text-align: center; margin-top: 30px;">
+        <a href="${process.env.FRONTEND_URL}" class="cta-button">Open DuoTrack</a>
+      </div>
+    `,
+    footerText: "Keep specific notifications enabled to see these instantly!",
+  });
+
+  await sendEmail({
+    to: partner.email,
+    subject: `👋 Nudge from ${user.name}: "${message}"`,
+    html: emailHtml,
+  });
+
+  return res.status(200).json(new ApiResponse(true, "Nudge sent!"));
+});
+
+// Mark Nudge as Seen
+const markNudgeSeen = asyncHandler(async (req, res) => {
+  const { id } = req.user;
+  await userModel.findByIdAndUpdate(id, { "lastNudge.seen": true });
+  return res.status(200).json(new ApiResponse(true, "Nudge marked as seen"));
 });
 
 export {
@@ -208,4 +264,6 @@ export {
   validateToken,
   linkPartner,
   unlinkPartner,
+  sendNudge,
+  markNudgeSeen,
 };

@@ -161,7 +161,7 @@ const getDashboard = asyncHandler(async (req, res) => {
       myTasks,
       partnerTasks,
       partner,
-    })
+    }),
   );
 });
 
@@ -181,4 +181,38 @@ const deleteTask = asyncHandler(async (req, res) => {
     .json(new ApiResponse(true, "Task deleted successfully"));
 });
 
-export { createTask, updateTaskStatus, getDashboard, deleteTask };
+const addTaskComment = asyncHandler(async (req, res) => {
+  const { id } = req.params; // Task ID
+  const { text } = req.body;
+  const { id: userId } = req.user;
+
+  if (!text) {
+    return res
+      .status(400)
+      .json(new ApiResponse(false, "Comment text is required"));
+  }
+
+  const task = await Task.findById(id);
+  if (!task) {
+    return res.status(404).json(new ApiResponse(false, "Task not found"));
+  }
+
+  task.comments.push({
+    text,
+    senderId: userId,
+  });
+
+  await task.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(true, "Comment added successfully", task));
+});
+
+export {
+  createTask,
+  updateTaskStatus,
+  getDashboard,
+  deleteTask,
+  addTaskComment,
+};

@@ -31,8 +31,14 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    lastNudge: {
+      message: String,
+      from: String,
+      timestamp: Date,
+      seen: { type: Boolean, default: false },
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 const userModel = mongoose.model("User", userSchema);
 export default userModel;
