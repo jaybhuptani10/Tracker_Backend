@@ -40,9 +40,8 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
   // Gamification & Notification Logic
   if (isCompleted) {
-    // 1. Update XP & Streak
+    // 1. Update Streak
     const user = await userModel.findById(req.user.id);
-    let xpChange = 10;
     let streakChange = 0;
     let newStreakDate = null;
 
@@ -75,16 +74,16 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
       }
     }
 
-    const updateQuery = { $inc: { xp: xpChange } };
+    const updateQuery = {};
     if (streakChange > 0) {
-      updateQuery.$inc.streak = streakChange;
+      updateQuery.$inc = { streak: streakChange };
       updateQuery.lastStreakDate = newStreakDate;
+      await userModel.findByIdAndUpdate(req.user.id, updateQuery);
     }
-    await userModel.findByIdAndUpdate(req.user.id, updateQuery);
 
     // 2. Notify Partner
     if (user && user.partnerId) {
-      const partner = await userModel.findById(user.partnerId); // Fixed: Fetch partner
+      const partner = await userModel.findById(user.partnerId);
       if (partner) {
         const emailHtml = getEmailTemplate({
           title: `Hey ${partner.name}, Great News! 🎉`,
@@ -95,7 +94,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
             <div class="task-card">
               <p class="task-content">"${task.content}"</p>
             </div>
-            <p>They earned <strong>+10 XP</strong>! Time for you to catch up? 😉</p>
+            <p>Keep up the momentum together! 💪</p>
             <div style="text-align: center; margin-top: 30px;">
                <a href="${
                  process.env.FRONTEND_URL || "#"
@@ -107,14 +106,11 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
         await sendEmail({
           to: partner.email,
-          subject: `✅ ${user.name} completed a task! (+10 XP)`,
+          subject: `✅ ${user.name} completed a task!`,
           html: emailHtml,
         });
       }
     }
-  } else {
-    // Decrease XP if task unchecked
-    await userModel.findByIdAndUpdate(req.user.id, { $inc: { xp: -10 } });
   }
 
   return res
@@ -147,10 +143,10 @@ const getDashboard = asyncHandler(async (req, res) => {
       date: { $gte: startOfDay, $lte: endOfDay },
     });
 
-    // Also fetch partner details (name)
+    // Also fetch partner details (name, streak)
     const partnerUser = await userModel
       .findById(user.partnerId)
-      .select("name email");
+      .select("name email streak");
     if (partnerUser) {
       partner = partnerUser;
     }

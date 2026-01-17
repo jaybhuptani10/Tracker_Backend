@@ -19,10 +19,6 @@ const userSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
-    xp: {
-      type: Number,
-      default: 0,
-    },
     streak: {
       type: Number,
       default: 0,
