@@ -1,22 +1,20 @@
 services:
-  # Backend Service
   - type: web
-    name: tracker-backend
-    env: node
-    plan: free
-    rootDir: Backend
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-      - key: MONGODB_URI
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: EMAIL_USER
-        sync: false
-      - key: EMAIL_PASS
-        sync: false
+  name: tracker-backend
+  env: node
+  plan: free
+  buildCommand: npm install
+  startCommand: npm start
+  envVars:
+    - key: NODE_ENV
+      value: production
+    - key: PORT
+      value: 10000
+    - key: MONGODB_URI
+      sync: false
+    - key: JWT_SECRET
+      sync: false
+    - key: EMAIL_USER
+      sync: false
+    - key: EMAIL_PASS
+      sync: false
