@@ -6,7 +6,7 @@ import { sendEmail } from "../utils/mailer.js";
 import { getEmailTemplate } from "../utils/emailTemplate.js";
 
 const createTask = asyncHandler(async (req, res) => {
-  const { content, category, date } = req.body;
+  const { content, category, date, isRecurring, recurrence } = req.body;
   const { id } = req.user;
 
   if (!content) {
@@ -14,18 +14,75 @@ const createTask = asyncHandler(async (req, res) => {
   }
 
   // If date is provided, use it, otherwise default to now (handled by schema default)
-  const taskDate = date ? new Date(date) : undefined;
+  const taskDate = date ? new Date(date) : new Date();
 
-  const task = await Task.create({
-    content,
-    category,
-    date: taskDate,
-    userId: id,
-  });
+  if (isRecurring && recurrence) {
+    // Create recurring task instances
+    const tasksToCreate = [];
+    const startDate = new Date(taskDate);
+    const endDate = recurrence.endDate
+      ? new Date(recurrence.endDate)
+      : new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000); // Default 90 days
 
-  return res
-    .status(201)
-    .json(new ApiResponse(true, "Task created successfully", task));
+    let currentDate = new Date(startDate);
+
+    while (currentDate <= endDate) {
+      let shouldCreate = false;
+
+      if (recurrence.type === "daily") {
+        shouldCreate = true;
+      } else if (recurrence.type === "weekly") {
+        // Weekly on the same day of week
+        shouldCreate = currentDate.getDay() === startDate.getDay();
+      } else if (
+        recurrence.type === "custom" &&
+        recurrence.daysOfWeek?.length > 0
+      ) {
+        // Custom days of week
+        shouldCreate = recurrence.daysOfWeek.includes(currentDate.getDay());
+      }
+
+      if (shouldCreate) {
+        tasksToCreate.push({
+          content,
+          category,
+          date: new Date(currentDate),
+          userId: id,
+          isRecurring: true,
+          recurrence,
+        });
+      }
+
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Bulk create all recurring task instances
+    const tasks = await Task.insertMany(tasksToCreate);
+
+    return res
+      .status(201)
+      .json(
+        new ApiResponse(
+          true,
+          `${tasks.length} recurring tasks created successfully`,
+          tasks,
+        ),
+      );
+  } else {
+    // Create single task
+    const task = await Task.create({
+      content,
+      category,
+      date: taskDate,
+      userId: id,
+      isRecurring: false,
+    });
+
+    return res
+      .status(201)
+      .json(new ApiResponse(true, "Task created successfully", task));
+  }
 });
 
 const updateTaskStatus = asyncHandler(async (req, res) => {
@@ -161,6 +218,28 @@ const getDashboard = asyncHandler(async (req, res) => {
   );
 });
 
+const updateTask = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { content, category } = req.body;
+
+  const task = await Task.findOne({ _id: id, userId: req.user.id });
+
+  if (!task) {
+    return res
+      .status(404)
+      .json(new ApiResponse(false, "Task not found or unauthorized"));
+  }
+
+  if (content) task.content = content;
+  if (category) task.category = category;
+
+  await task.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(true, "Task updated successfully", task));
+});
+
 const deleteTask = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
@@ -207,6 +286,7 @@ const addTaskComment = asyncHandler(async (req, res) => {
 
 export {
   createTask,
+  updateTask,
   updateTaskStatus,
   getDashboard,
   deleteTask,

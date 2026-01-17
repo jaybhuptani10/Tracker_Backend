@@ -1,6 +1,7 @@
 import { Router } from "express";
 import {
   createTask,
+  updateTask,
   updateTaskStatus,
   getDashboard,
   deleteTask,
@@ -14,6 +15,7 @@ taskRouter.use(verifyJWT); // Protect all task routes
 
 taskRouter.route("/").post(createTask);
 taskRouter.route("/dashboard").get(getDashboard);
+taskRouter.route("/:id").patch(updateTask);
 taskRouter.route("/:id/status").patch(updateTaskStatus);
 taskRouter.route("/:id").delete(deleteTask);
 taskRouter.route("/:id/comment").post(addTaskComment);
