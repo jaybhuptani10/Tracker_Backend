@@ -47,6 +47,15 @@ const startServer = async () => {
         io.to(recipientId).emit("partner_stop_typing");
       });
 
+      socket.on("timer_update", ({ partnerId, totalSeconds, isRunning }) => {
+        if (partnerId) {
+          io.to(partnerId).emit("partner_timer_update", {
+            totalSeconds,
+            isRunning,
+          });
+        }
+      });
+
       socket.on("disconnect", () => {
         if (socket.partnerId) {
           io.to(socket.partnerId).emit("user_offline", {
