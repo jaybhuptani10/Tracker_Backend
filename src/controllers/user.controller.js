@@ -115,7 +115,7 @@ const userProfile = asyncHandler(async (req, res) => {
         });
       }
       const { name, email, _id, partnerId } = user;
-      res.json({ name, email, id: _id, partnerId });
+      res.json({ name, email, _id, partnerId });
     });
   } catch (e) {
     console.error("Server error:", e);
