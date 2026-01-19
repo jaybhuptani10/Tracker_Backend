@@ -197,21 +197,54 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
 
 const getDashboard = asyncHandler(async (req, res) => {
   const { id } = req.user;
+  const { date, viewMode = "daily" } = req.query;
+
   const user = await userModel.findById(id);
+  if (!user)
+    return res.status(404).json(new ApiResponse(false, "User not found"));
 
-  // Get date from query or default to today (start of day)
-  const queryDate = req.query.date ? new Date(req.query.date) : new Date();
-  const startOfDay = new Date(queryDate.setHours(0, 0, 0, 0));
-  const endOfDay = new Date(queryDate.setHours(23, 59, 59, 999));
+  const queryDate = date ? new Date(date) : new Date();
 
-  // Fetch my tasks (non-shared)
+  let startOfRange, endOfRange;
+
+  // Calculate date range based on view mode
+  if (viewMode === "weekly") {
+    // Get start of week (Sunday)
+    startOfRange = new Date(queryDate);
+    startOfRange.setDate(queryDate.getDate() - queryDate.getDay());
+    startOfRange.setHours(0, 0, 0, 0);
+
+    // Get end of week (Saturday)
+    endOfRange = new Date(startOfRange);
+    endOfRange.setDate(startOfRange.getDate() + 6);
+    endOfRange.setHours(23, 59, 59, 999);
+  } else if (viewMode === "monthly") {
+    // Get start of month
+    startOfRange = new Date(queryDate.getFullYear(), queryDate.getMonth(), 1);
+    startOfRange.setHours(0, 0, 0, 0);
+
+    // Get end of month
+    endOfRange = new Date(queryDate.getFullYear(), queryDate.getMonth() + 1, 0);
+    endOfRange.setHours(23, 59, 59, 999);
+  } else {
+    // Daily view (default)
+    startOfRange = new Date(queryDate.setHours(0, 0, 0, 0));
+    endOfRange = new Date(queryDate.setHours(23, 59, 59, 999));
+  }
+
+  // Sorting: Daily uses manual position, others use date then position
+  const sortCriteria =
+    viewMode === "daily"
+      ? { position: 1, createdAt: -1 }
+      : { date: 1, position: 1 };
+
+  // Fetch user's own tasks for the date range
   const myTasks = await Task.find({
     userId: id,
-    isShared: { $ne: true }, // Include false or missing
-    date: { $gte: startOfDay, $lte: endOfDay },
-  });
+    isShared: { $ne: true },
+    date: { $gte: startOfRange, $lte: endOfRange },
+  }).sort(sortCriteria);
 
-  // Fetch partner's tasks if partner exists
   let partnerTasks = [];
   let partner = null;
   let sharedTasks = [];
@@ -219,18 +252,17 @@ const getDashboard = asyncHandler(async (req, res) => {
   if (user.partnerId) {
     partnerTasks = await Task.find({
       userId: user.partnerId,
-      isShared: { $ne: true }, // Include false or missing
-      date: { $gte: startOfDay, $lte: endOfDay },
-    });
+      isShared: { $ne: true },
+      date: { $gte: startOfRange, $lte: endOfRange },
+    }).sort(sortCriteria);
 
-    // Fetch shared tasks (Common Goals - persistent, not date-bound)
-    // Fetch all incomplete shared tasks + completed ones from today
+    // Fetch shared tasks (Common Goals - persistent)
     sharedTasks = await Task.find({
       isShared: true,
       $or: [{ userId: id }, { userId: user.partnerId }],
     }).sort({ createdAt: -1 });
 
-    // Also fetch partner details (name, streak)
+    // Fetch partner details
     const partnerUser = await userModel
       .findById(user.partnerId)
       .select("name email streak");
@@ -245,6 +277,8 @@ const getDashboard = asyncHandler(async (req, res) => {
       partnerTasks,
       partner,
       sharedTasks,
+      viewMode,
+      dateRange: { start: startOfRange, end: endOfRange },
     }),
   );
 });
@@ -263,6 +297,21 @@ const updateTask = asyncHandler(async (req, res) => {
 
   if (content) task.content = content;
   if (category) task.category = category;
+  if (req.body.hasOwnProperty("isRecurring")) {
+    task.isRecurring = req.body.isRecurring;
+
+    // If stopping recurrence, delete future identical recurring tasks
+    if (req.body.isRecurring === false) {
+      await Task.deleteMany({
+        userId: req.user.id,
+        content: task.content,
+        isRecurring: true,
+        date: { $gt: task.date },
+      });
+    }
+  }
+  if (req.body.hasOwnProperty("recurrence"))
+    task.recurrence = req.body.recurrence;
 
   await task.save();
 
@@ -350,6 +399,21 @@ const toggleSubtask = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(true, "Subtask updated", task));
 });
 
+const deleteSubtask = asyncHandler(async (req, res) => {
+  const { id, subtaskId } = req.params;
+
+  const task = await Task.findById(id);
+  if (!task)
+    return res.status(404).json(new ApiResponse(false, "Task not found"));
+
+  task.subtasks = task.subtasks.filter(
+    (sub) => sub._id.toString() !== subtaskId,
+  );
+  await task.save();
+
+  return res.status(200).json(new ApiResponse(true, "Subtask deleted", task));
+});
+
 export {
   createTask,
   updateTask,
@@ -359,4 +423,5 @@ export {
   addTaskComment,
   addSubtask,
   toggleSubtask,
+  deleteSubtask,
 };

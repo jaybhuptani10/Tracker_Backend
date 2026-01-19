@@ -8,6 +8,7 @@ import {
   addTaskComment,
   addSubtask,
   toggleSubtask,
+  deleteSubtask,
 } from "../controllers/task.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
 
@@ -22,6 +23,9 @@ taskRouter.route("/:id/status").patch(updateTaskStatus);
 taskRouter.route("/:id").delete(deleteTask);
 taskRouter.route("/:id/comment").post(addTaskComment);
 taskRouter.route("/:id/subtasks").post(addSubtask);
-taskRouter.route("/:id/subtasks/:subtaskId").patch(toggleSubtask);
+taskRouter
+  .route("/:id/subtasks/:subtaskId")
+  .patch(toggleSubtask)
+  .delete(deleteSubtask);
 
 export default taskRouter;
