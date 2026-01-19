@@ -34,6 +34,8 @@ app.use("/user", userRouter);
 app.use("/tasks", taskRouter);
 app.use("/work-session", workSessionRouter);
 app.use("/habits", habitRouter);
+import analyticsRouter from "./routes/analytics.routes.js";
+app.use("/analytics", analyticsRouter);
 
 app.use("/", (req, res) => {
   res.json("Hell");

@@ -5,6 +5,124 @@ import userModel from "../models/user.model.js";
 import { sendEmail } from "../utils/mailer.js";
 import { getEmailTemplate } from "../utils/emailTemplate.js";
 
+// Helper: Update Streak Logic
+const checkAndUpdateStreak = async (userId, taskDate) => {
+  if (!taskDate) return;
+
+  const startOfTaskDate = new Date(taskDate);
+  startOfTaskDate.setHours(0, 0, 0, 0);
+  const endOfTaskDate = new Date(taskDate);
+  endOfTaskDate.setHours(23, 59, 59, 999);
+
+  const currentStartOfDay = new Date();
+  currentStartOfDay.setHours(0, 0, 0, 0);
+
+  // Rule: Do not count if task date is in past (before today)
+  if (startOfTaskDate < currentStartOfDay) return;
+
+  // Check if all tasks for that date are completed
+  const dayTasks = await Task.find({
+    userId,
+    date: { $gte: startOfTaskDate, $lte: endOfTaskDate },
+  });
+
+  const allCompleted = dayTasks.every((t) => t.isCompleted);
+
+  if (!allCompleted || dayTasks.length === 0) return;
+
+  const user = await userModel.findById(userId);
+  if (!user) return;
+
+  const lastDate = user.lastStreakDate ? new Date(user.lastStreakDate) : null;
+  if (lastDate) lastDate.setHours(0, 0, 0, 0);
+
+  const oneDay = 24 * 60 * 60 * 1000;
+  let newStreak = user.streak;
+
+  if (!lastDate) {
+    newStreak = 1;
+  } else {
+    // Diff in days
+    const diffDays = Math.round((startOfTaskDate - lastDate) / oneDay);
+
+    if (diffDays === 0) {
+      return; // Already accounted
+    } else if (diffDays === 1) {
+      newStreak += 1; // Consecutive
+    } else {
+      newStreak = 1; // Gap > 1, Reset
+    }
+  }
+
+  await userModel.findByIdAndUpdate(userId, {
+    streak: newStreak,
+    lastStreakDate: new Date(),
+  });
+};
+
+// Helper: Send Notifications
+const sendCompletionNotifications = async (userId, task) => {
+  const user = await userModel.findById(userId);
+  if (!user) return;
+
+  // Notify Self
+  if (user.email) {
+    const selfEmailHtml = getEmailTemplate({
+      title: `Way to go, ${user.name}! 🎉`,
+      body: `
+            <p>You just crushed a task!</p>
+            <div class="task-card">
+              <p class="task-content">"${task.content}"</p>
+            </div>
+            <p>Keep up the momentum! 💪</p>
+            <div style="text-align: center; margin-top: 30px;">
+               <a href="${
+                 process.env.FRONTEND_URL || "#"
+               }" class="cta-button">Check Dashboard</a>
+            </div>
+          `,
+      footerText: "You are doing great! 🌟",
+    });
+
+    await sendEmail({
+      to: user.email,
+      subject: `✅ You completed a task!`,
+      html: selfEmailHtml,
+    });
+  }
+
+  // Notify Partner
+  if (user.partnerId) {
+    const partner = await userModel.findById(user.partnerId);
+    if (partner) {
+      const emailHtml = getEmailTemplate({
+        title: `Hey ${partner.name}, Great News! 🎉`,
+        body: `
+            <p>Your partner <span class="highlight">${
+              user.name
+            }</span> just crushed a task!</p>
+            <div class="task-card">
+              <p class="task-content">"${task.content}"</p>
+            </div>
+            <p>Keep up the momentum together! 💪</p>
+            <div style="text-align: center; margin-top: 30px;">
+               <a href="${
+                 process.env.FRONTEND_URL || "#"
+               }" class="cta-button">Check Dashboard</a>
+            </div>
+          `,
+        footerText: "Stay consistent together! 💪",
+      });
+
+      await sendEmail({
+        to: partner.email,
+        subject: `✅ ${user.name} completed a task!`,
+        html: emailHtml,
+      });
+    }
+  }
+};
+
 const createTask = asyncHandler(async (req, res) => {
   const { content, category, date, isRecurring, recurrence, isShared } =
     req.body;
@@ -98,7 +216,7 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
     return res.status(404).json(new ApiResponse(false, "Task not found"));
   }
 
-  // Authorization: owner can always update, partner can update if task is shared
+  // Authorization
   const user = await userModel.findById(req.user.id);
   const isOwner = task.userId.toString() === req.user.id;
   const isPartnerOfSharedTask =
@@ -115,106 +233,10 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
   task.isCompleted = isCompleted;
   await task.save();
 
-  // Gamification & Notification Logic
   if (isCompleted) {
-    // 1. Update Streak
-    const user = await userModel.findById(req.user.id);
-    let streakChange = 0;
-    let newStreakDate = null;
-
-    // Check if all tasks for this task's date are completed
-    if (task.date) {
-      const taskDate = new Date(task.date);
-      const startOfDay = new Date(taskDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(taskDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const dayTasks = await Task.find({
-        userId: req.user.id,
-        date: { $gte: startOfDay, $lte: endOfDay },
-      });
-
-      // Current task is already updated in DB (new: true)
-      const allCompleted = dayTasks.every((t) => t.isCompleted);
-
-      if (allCompleted && dayTasks.length > 0) {
-        // Only increment streak if not already incremented for this date
-        // Simple check: if lastStreakDate < startOfDay
-        const lastDate = user.lastStreakDate
-          ? new Date(user.lastStreakDate)
-          : null;
-        if (!lastDate || lastDate < startOfDay) {
-          streakChange = 1;
-          newStreakDate = new Date(); // Record time of streak achievement
-        }
-      }
-    }
-
-    const updateQuery = {};
-    if (streakChange > 0) {
-      updateQuery.$inc = { streak: streakChange };
-      updateQuery.lastStreakDate = newStreakDate;
-      await userModel.findByIdAndUpdate(req.user.id, updateQuery);
-    }
-
-    // 2. Notify Self (The User who completed the task)
-    if (user && user.email) {
-      const selfEmailHtml = getEmailTemplate({
-        title: `Way to go, ${user.name}! 🎉`,
-        body: `
-            <p>You just crushed a task!</p>
-            <div class="task-card">
-              <p class="task-content">"${task.content}"</p>
-            </div>
-            <p>Keep up the momentum! 💪</p>
-            <div style="text-align: center; margin-top: 30px;">
-               <a href="${
-                 process.env.FRONTEND_URL || "#"
-               }" class="cta-button">Check Dashboard</a>
-            </div>
-          `,
-        footerText: "You are doing great! 🌟",
-      });
-
-      // Send in background or await - sticking to await pattern for now
-      await sendEmail({
-        to: user.email,
-        subject: `✅ You completed a task!`,
-        html: selfEmailHtml,
-      });
-    }
-
-    // 3. Notify Partner
-    if (user && user.partnerId) {
-      const partner = await userModel.findById(user.partnerId);
-      if (partner) {
-        const emailHtml = getEmailTemplate({
-          title: `Hey ${partner.name}, Great News! 🎉`,
-          body: `
-            <p>Your partner <span class="highlight">${
-              user.name
-            }</span> just crushed a task!</p>
-            <div class="task-card">
-              <p class="task-content">"${task.content}"</p>
-            </div>
-            <p>Keep up the momentum together! 💪</p>
-            <div style="text-align: center; margin-top: 30px;">
-               <a href="${
-                 process.env.FRONTEND_URL || "#"
-               }" class="cta-button">Check Dashboard</a>
-            </div>
-          `,
-          footerText: "Stay consistent together! 💪",
-        });
-
-        await sendEmail({
-          to: partner.email,
-          subject: `✅ ${user.name} completed a task!`,
-          html: emailHtml,
-        });
-      }
-    }
+    await checkAndUpdateStreak(req.user.id, task.date);
+    // Notifications allow background processing (awaiting for simplicity)
+    await sendCompletionNotifications(req.user.id, task);
   }
 
   return res
@@ -422,7 +444,27 @@ const toggleSubtask = asyncHandler(async (req, res) => {
     return res.status(404).json(new ApiResponse(false, "Subtask not found"));
 
   subtask.isCompleted = !subtask.isCompleted;
+
+  // Auto-complete parent task if all subtasks are done
+  const allSubtasksCompleted = task.subtasks.every((sub) => sub.isCompleted);
+  let parentStatusChanged = false;
+
+  if (allSubtasksCompleted && task.subtasks.length > 0) {
+    if (!task.isCompleted) {
+      task.isCompleted = true;
+      parentStatusChanged = true;
+    }
+  } else if (!allSubtasksCompleted && task.isCompleted) {
+    // If we unchecked a subtask, and parent was completed, uncomplete parent
+    task.isCompleted = false;
+  }
+
   await task.save();
+
+  if (parentStatusChanged && task.isCompleted) {
+    await checkAndUpdateStreak(req.user.id, task.date);
+    await sendCompletionNotifications(req.user.id, task);
+  }
 
   return res.status(200).json(new ApiResponse(true, "Subtask updated", task));
 });
