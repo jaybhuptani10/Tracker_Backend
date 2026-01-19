@@ -158,7 +158,34 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
       await userModel.findByIdAndUpdate(req.user.id, updateQuery);
     }
 
-    // 2. Notify Partner
+    // 2. Notify Self (The User who completed the task)
+    if (user && user.email) {
+      const selfEmailHtml = getEmailTemplate({
+        title: `Way to go, ${user.name}! 🎉`,
+        body: `
+            <p>You just crushed a task!</p>
+            <div class="task-card">
+              <p class="task-content">"${task.content}"</p>
+            </div>
+            <p>Keep up the momentum! 💪</p>
+            <div style="text-align: center; margin-top: 30px;">
+               <a href="${
+                 process.env.FRONTEND_URL || "#"
+               }" class="cta-button">Check Dashboard</a>
+            </div>
+          `,
+        footerText: "You are doing great! 🌟",
+      });
+
+      // Send in background or await - sticking to await pattern for now
+      await sendEmail({
+        to: user.email,
+        subject: `✅ You completed a task!`,
+        html: selfEmailHtml,
+      });
+    }
+
+    // 3. Notify Partner
     if (user && user.partnerId) {
       const partner = await userModel.findById(user.partnerId);
       if (partner) {
@@ -256,10 +283,11 @@ const getDashboard = asyncHandler(async (req, res) => {
       date: { $gte: startOfRange, $lte: endOfRange },
     }).sort(sortCriteria);
 
-    // Fetch shared tasks (Common Goals - persistent)
+    // Fetch shared tasks (Common Goals)
     sharedTasks = await Task.find({
       isShared: true,
       $or: [{ userId: id }, { userId: user.partnerId }],
+      date: { $gte: startOfRange, $lte: endOfRange },
     }).sort({ createdAt: -1 });
 
     // Fetch partner details

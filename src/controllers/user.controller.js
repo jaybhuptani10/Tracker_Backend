@@ -55,14 +55,15 @@ const loginUser = asyncHandler(async (req, res) => {
       jwt.sign(
         { email: userDoc.email, id: userDoc._id, name: userDoc.name },
         process.env.JWT_SECRET,
-        { expiresIn: "1d" },
+        { expiresIn: "365d" }, // Set to 1 year
         (err, token) => {
           if (err) throw err;
           res
             .cookie("token", token, {
               httpOnly: true,
-              secure: process.env.NODE_ENV === "production", // Set secure to true in production
-              sameSite: "None", // Required for cross-site cookies
+              secure: process.env.NODE_ENV === "production",
+              sameSite: "None",
+              maxAge: 365 * 24 * 60 * 60 * 1000, // 1 Year in milliseconds
             })
             .json({ token, user: userDoc }); // Include token in response
         },

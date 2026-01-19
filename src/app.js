@@ -28,10 +28,12 @@ app.use(cookieParser());
 import userRouter from "./routes/user.routes.js";
 import taskRouter from "./routes/task.routes.js";
 import workSessionRouter from "./routes/workSession.routes.js";
+import habitRouter from "./routes/habit.routes.js";
 
 app.use("/user", userRouter);
 app.use("/tasks", taskRouter);
 app.use("/work-session", workSessionRouter);
+app.use("/habits", habitRouter);
 
 app.use("/", (req, res) => {
   res.json("Hell");

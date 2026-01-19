@@ -20,7 +20,7 @@ export const getEmailTemplate = ({
         .task-content { font-size: 18px; font-weight: 600; color: #1f2937; margin: 0; }
         .footer { background: #f9fafb; padding: 20px; text-align: center; color: #9ca3af; font-size: 12px; border-top: 1px solid #e5e7eb; }
         .highlight { color: #7c3aed; font-weight: 600; }
-        .cta-button { display: inline-block; background-color: #4f46e5; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 10px; }
+        .cta-button { display: inline-block; background-color: #4f46e5; color: #ffffff !important; padding: 12px 24px; border-radius: 8px; text-decoration: none !important; font-weight: bold; margin-top: 10px; }
       </style>
     </head>
     <body>
