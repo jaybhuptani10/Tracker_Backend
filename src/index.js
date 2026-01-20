@@ -20,6 +20,8 @@ const startServer = async () => {
       },
     });
 
+    app.set("io", io);
+
     io.on("connection", (socket) => {
       socket.on("join", ({ userId, partnerId }) => {
         socket.join(userId);

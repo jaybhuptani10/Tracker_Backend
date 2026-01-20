@@ -6,7 +6,9 @@ import {
   registerUser,
   userProfile,
   validateToken,
-  linkPartner,
+  sendPartnerRequest,
+  getPartnerRequests,
+  respondToPartnerRequest,
   unlinkPartner,
   sendNudge,
   markNudgeSeen,
@@ -17,7 +19,12 @@ const userRouter = Router();
 userRouter.route("/register").post(registerUser);
 userRouter.route("/login").post(loginUser);
 userRouter.route("/logout").post(logoutUser);
-userRouter.route("/link-partner").post(verifyJWT, linkPartner);
+
+// Partner Management
+userRouter.route("/partner/request").post(verifyJWT, sendPartnerRequest);
+userRouter.route("/partner/requests").get(verifyJWT, getPartnerRequests);
+userRouter.route("/partner/respond").post(verifyJWT, respondToPartnerRequest);
+
 userRouter.route("/unlink-partner").post(verifyJWT, unlinkPartner);
 userRouter.route("/nudge").post(verifyJWT, sendNudge);
 userRouter.route("/nudge/seen").post(verifyJWT, markNudgeSeen);

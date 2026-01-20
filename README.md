@@ -103,9 +103,9 @@ To start the server:
 }
 ```
 
-#### **Link Partner**
+#### **Send Partner Request**
 
-- **URL:** `/user/link-partner`
+- **URL:** `/user/partner/request`
 - **Method:** `POST`
 - **Auth Required:** ✅ Yes
 
@@ -122,8 +122,56 @@ To start the server:
 ```json
 {
   "success": true,
-  "message": "Partner linked successfully",
-  "data": { ...updatedUserObject }
+  "message": "Partner request sent successfully"
+}
+```
+
+#### **Get Pending Requests**
+
+- **URL:** `/user/partner/requests`
+- **Method:** `GET`
+- **Auth Required:** ✅ Yes
+
+**Success Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "_id": "req_123",
+      "requesterId": {
+        "_id": "user_abc",
+        "name": "John Doe",
+        "email": "john@a.com"
+      },
+      "status": "pending"
+    }
+  ]
+}
+```
+
+#### **Respond to Request**
+
+- **URL:** `/user/partner/respond`
+- **Method:** `POST`
+- **Auth Required:** ✅ Yes
+
+**Request Body:**
+
+```json
+{
+  "requestId": "req_123",
+  "action": "accept" // String (accept/reject)
+}
+```
+
+**Success Response (200 OK):**
+
+```json
+{
+  "success": true,
+  "message": "Partner request accepted"
 }
 ```
 

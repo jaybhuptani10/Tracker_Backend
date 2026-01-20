@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { ApiResponse } from "../utils/apiresponse.js";
 import userModel from "../models/user.model.js";
+import PartnerRequest from "../models/partnerRequest.model.js";
 import { sendEmail } from "../utils/mailer.js";
 import { getEmailTemplate } from "../utils/emailTemplate.js";
 
@@ -150,35 +151,172 @@ const validateToken = asyncHandler(async (req, res) => {
   });
 });
 
-// Link Partner
-const linkPartner = asyncHandler(async (req, res) => {
+// Send Partner Request
+const sendPartnerRequest = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const { id } = req.user; // Assuming auth middleware adds user to req
+  const { id } = req.user;
 
   if (!email) {
     return res.status(400).json(new ApiResponse(false, "Email is required"));
   }
 
-  const partner = await userModel.findOne({ email: email.toLowerCase() });
-  if (!partner) {
+  const recipient = await userModel.findOne({ email: email.toLowerCase() });
+  if (!recipient) {
     return res.status(404).json(new ApiResponse(false, "User not found"));
   }
 
-  if (partner._id.toString() === id) {
+  if (recipient._id.toString() === id) {
     return res
       .status(400)
       .json(new ApiResponse(false, "You cannot link with yourself"));
   }
 
-  // Update current user
-  await userModel.findByIdAndUpdate(id, { partnerId: partner._id });
+  if (recipient.partnerId) {
+    return res
+      .status(400)
+      .json(new ApiResponse(false, "User is already partnered"));
+  }
 
-  // Update partner (bidirectional link)
-  await userModel.findByIdAndUpdate(partner._id, { partnerId: id });
+  // Check existing request
+  const existingRequest = await PartnerRequest.findOne({
+    requesterId: id,
+    recipientId: recipient._id,
+    status: "pending",
+  });
+
+  if (existingRequest) {
+    return res.status(400).json(new ApiResponse(false, "Request already sent"));
+  }
+
+  // Create Request
+  await PartnerRequest.create({
+    requesterId: id,
+    recipientId: recipient._id,
+  });
+
+  // Send Email
+  const currentUser = await userModel.findById(id);
+  const emailHtml = getEmailTemplate({
+    title: `Partner Request from ${currentUser.name}`,
+    body: `
+      <p>${currentUser.name} wants to be your accountability partner on DuoTrack!</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${process.env.FRONTEND_URL}/dashboard" class="cta-button">Accept Request</a>
+      </div>
+    `,
+    footerText: "Build habits together!",
+  });
+
+  await sendEmail({
+    to: recipient.email,
+    subject: `Partner Request from ${currentUser.name}`,
+    html: emailHtml,
+  });
+
+  // Real-time notification
+  const io = req.app.get("io");
+  if (io) {
+    io.to(recipient._id.toString()).emit("receive_request", {
+      requester: { name: currentUser.name },
+    });
+  }
 
   return res
     .status(200)
-    .json(new ApiResponse(true, "Partner linked successfully"));
+    .json(new ApiResponse(true, "Partner request sent successfully"));
+});
+
+// Get Pending Requests
+const getPartnerRequests = asyncHandler(async (req, res) => {
+  const { id } = req.user;
+  const requests = await PartnerRequest.find({
+    recipientId: id,
+    status: "pending",
+  }).populate("requesterId", "name email");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(true, "Requests fetched", requests));
+});
+
+// Respond to Request
+const respondToPartnerRequest = asyncHandler(async (req, res) => {
+  const { requestId, action } = req.body; // action: 'accept' or 'reject'
+  const { id } = req.user;
+
+  const request = await PartnerRequest.findById(requestId);
+  if (!request) {
+    return res.status(404).json(new ApiResponse(false, "Request not found"));
+  }
+
+  if (request.recipientId.toString() !== id) {
+    return res.status(403).json(new ApiResponse(false, "Unauthorized"));
+  }
+
+  if (action === "accept") {
+    // Update both users
+    await userModel.findByIdAndUpdate(request.requesterId, {
+      partnerId: id,
+    });
+    await userModel.findByIdAndUpdate(id, {
+      partnerId: request.requesterId,
+    });
+
+    // Delete this request and any conflicting ones
+    await PartnerRequest.deleteMany({
+      $or: [
+        { requesterId: id },
+        { recipientId: id },
+        { requesterId: request.requesterId },
+        { recipientId: request.requesterId },
+      ],
+    });
+
+    // Notify Requester
+    const recipientUser = await userModel.findById(id);
+    const requesterUser = await userModel.findById(request.requesterId);
+
+    const emailHtml = getEmailTemplate({
+      title: `Request Accepted! 🎉`,
+      body: `
+        <p>${recipientUser.name} accepted your partner request!</p>
+        <p>You can now track goals together.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${process.env.FRONTEND_URL}/dashboard" class="cta-button">Go to Dashboard</a>
+        </div>
+      `,
+      footerText: "Let's go!",
+    });
+
+    await sendEmail({
+      to: requesterUser.email,
+      subject: `Partner Request Accepted!`,
+      html: emailHtml,
+    });
+
+    // Real-time notification
+    const io = req.app.get("io");
+    if (io) {
+      // Notify requester (who sent the request)
+      io.to(request.requesterId.toString()).emit("request_accepted", {
+        partner: { name: recipientUser.name },
+      });
+      // Notify recipient (current user, just in case they have multiple tabs)
+      io.to(id.toString()).emit("request_accepted", {
+        partner: { name: requesterUser.name },
+      });
+    }
+
+    return res
+      .status(200)
+      .json(new ApiResponse(true, "Partner request accepted"));
+  } else {
+    // Reject
+    await PartnerRequest.findByIdAndDelete(requestId);
+    return res
+      .status(200)
+      .json(new ApiResponse(true, "Partner request rejected"));
+  }
 });
 
 // Unlink Partner
@@ -263,7 +401,9 @@ export {
   userProfile,
   registerUser,
   validateToken,
-  linkPartner,
+  sendPartnerRequest,
+  getPartnerRequests,
+  respondToPartnerRequest,
   unlinkPartner,
   sendNudge,
   markNudgeSeen,
