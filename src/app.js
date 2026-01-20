@@ -5,8 +5,20 @@ import "./jobs/reminder.job.js"; // Start Cron Jobs
 
 const app = express();
 
+const allowedOrigins = [
+  "https://duotrack.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+];
+
 const corsOptions = {
-  origin: true, // Allow all origins for now to fix the blockage
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 };
