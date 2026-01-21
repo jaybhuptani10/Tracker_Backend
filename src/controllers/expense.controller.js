@@ -35,25 +35,31 @@ const getExpenses = asyncHandler(async (req, res) => {
 
   let myTotal = 0;
   let partnerTotal = 0;
+  const categoryStats = {};
 
   allExpenses.forEach((exp) => {
+    // Total calculation
     if (exp.paidBy.toString() === id) {
       myTotal += exp.amount;
     } else {
       partnerTotal += exp.amount;
     }
+
+    // Category calculation
+    if (!categoryStats[exp.category]) {
+      categoryStats[exp.category] = 0;
+    }
+    categoryStats[exp.category] += exp.amount;
   });
 
   const totalSpent = myTotal + partnerTotal;
-  const splitAmount = totalSpent / 2;
-
-  // Logic:
-  // I paid 600, Partner paid 400. Total 1000. Split 500 each.
-  // Partner owes me 100 (500 - 400).
-  // Or: (MyTotal - PartnerTotal) / 2
-  // (600 - 400) / 2 = 100. Positive means I am owed. Negative means I owe.
-
   const balance = (myTotal - partnerTotal) / 2;
+
+  // Format category stats for frontend chart [{ name: 'Food', value: 500 }]
+  const categoryChartData = Object.keys(categoryStats).map((cat) => ({
+    name: cat,
+    value: categoryStats[cat],
+  }));
 
   return res.status(200).json(
     new ApiResponse(true, "Expenses fetched", {
@@ -63,6 +69,7 @@ const getExpenses = asyncHandler(async (req, res) => {
         partnerTotal,
         totalSpent,
         balance, // +ve: Receive, -ve: Pay
+        categoryChartData,
       },
     }),
   );
