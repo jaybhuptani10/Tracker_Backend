@@ -45,14 +45,18 @@ import userRouter from "./routes/user.routes.js";
 import taskRouter from "./routes/task.routes.js";
 import workSessionRouter from "./routes/workSession.routes.js";
 import habitRouter from "./routes/habit.routes.js";
+import noteRouter from "./routes/note.routes.js";
 
+// Routes declaration
 app.use("/user", userRouter);
 app.use("/tasks", taskRouter);
-app.use("/work-session", workSessionRouter);
 app.use("/habits", habitRouter);
+app.use("/work-session", workSessionRouter);
+app.use("/notes", noteRouter);
 import analyticsRouter from "./routes/analytics.routes.js";
 app.use("/analytics", analyticsRouter);
 
+// Health check route - MUST be after other routes to avoid shadowing
 app.use("/", (req, res) => {
   res.json("Hell");
 });
