@@ -46,6 +46,7 @@ import taskRouter from "./routes/task.routes.js";
 import workSessionRouter from "./routes/workSession.routes.js";
 import habitRouter from "./routes/habit.routes.js";
 import noteRouter from "./routes/note.routes.js";
+import expenseRouter from "./routes/expense.routes.js";
 
 // Routes declaration
 app.use("/user", userRouter);
@@ -53,6 +54,7 @@ app.use("/tasks", taskRouter);
 app.use("/habits", habitRouter);
 app.use("/work-session", workSessionRouter);
 app.use("/notes", noteRouter);
+app.use("/expenses", expenseRouter);
 import analyticsRouter from "./routes/analytics.routes.js";
 app.use("/analytics", analyticsRouter);
 

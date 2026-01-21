@@ -12,6 +12,11 @@ const noteSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    type: {
+      type: String,
+      enum: ["SHARED", "PERSONAL"],
+      default: "SHARED",
+    },
     lastUpdatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
