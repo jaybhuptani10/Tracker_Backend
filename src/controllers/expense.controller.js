@@ -7,69 +7,80 @@ const getExpenses = asyncHandler(async (req, res) => {
   const { id } = req.user;
 
   const user = await userModel.findById(id);
-  if (!user || (!user.partnerId && !req.query.personal)) {
-    // Return empty if no partner, unless personal tracking requested (future proof)
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(true, "No partner linked", { expenses: [], stats: {} }),
-      );
-  }
+  // Allow fetching if no partner, but just return personal expenses then
+  const partnerId = user?.partnerId;
 
-  const partnerId = user.partnerId;
-
-  // Fetch last 50 expenses between these two users
-  const expenses = await Expense.find({
-    partners: { $all: [id, partnerId] },
-  })
+  // Fetch last 50 expenses (Personal OR Shared)
+  const expenses = await Expense.find({ partners: id })
     .sort({ date: -1 })
     .limit(50)
     .populate("paidBy", "name");
 
-  // Calculate stats
-  // Total spending
-  // Who owes whom
-  const allExpenses = await Expense.find({
-    partners: { $all: [id, partnerId] },
-  });
+  // Fetch ALL expenses to calculate accruals/totals
+  const allExpenses = await Expense.find({ partners: id });
 
-  let myTotal = 0;
-  let partnerTotal = 0;
-  const categoryStats = {};
+  let mySharedTotal = 0;
+  let partnerSharedTotal = 0;
+  let myPersonalTotal = 0;
+
+  const sharedCategoryStats = {};
+  const personalCategoryStats = {};
 
   allExpenses.forEach((exp) => {
-    // Total calculation
-    if (exp.paidBy.toString() === id) {
-      myTotal += exp.amount;
-    } else {
-      partnerTotal += exp.amount;
-    }
+    const isPersonal = exp.type === "Personal" || exp.partners.length === 1;
 
-    // Category calculation
-    if (!categoryStats[exp.category]) {
-      categoryStats[exp.category] = 0;
+    if (isPersonal) {
+      // Personal Stats
+      if (exp.paidBy.toString() === id) {
+        myPersonalTotal += exp.amount;
+        // Personal Category
+        if (!personalCategoryStats[exp.category])
+          personalCategoryStats[exp.category] = 0;
+        personalCategoryStats[exp.category] += exp.amount;
+      }
+    } else {
+      // Shared Stats (Only if valid shared expense)
+      if (exp.paidBy.toString() === id) {
+        mySharedTotal += exp.amount;
+      } else {
+        partnerSharedTotal += exp.amount;
+      }
+
+      // Shared Category
+      if (!sharedCategoryStats[exp.category])
+        sharedCategoryStats[exp.category] = 0;
+      sharedCategoryStats[exp.category] += exp.amount;
     }
-    categoryStats[exp.category] += exp.amount;
   });
 
-  const totalSpent = myTotal + partnerTotal;
-  const balance = (myTotal - partnerTotal) / 2;
+  const totalSharedSpent = mySharedTotal + partnerSharedTotal;
+  const balance = (mySharedTotal - partnerSharedTotal) / 2;
 
-  // Format category stats for frontend chart [{ name: 'Food', value: 500 }]
-  const categoryChartData = Object.keys(categoryStats).map((cat) => ({
+  // Format charts
+  const categoryChartData = Object.keys(sharedCategoryStats).map((cat) => ({
     name: cat,
-    value: categoryStats[cat],
+    value: sharedCategoryStats[cat],
   }));
+
+  const personalCategoryChartData = Object.keys(personalCategoryStats).map(
+    (cat) => ({
+      name: cat,
+      value: personalCategoryStats[cat],
+    }),
+  );
 
   return res.status(200).json(
     new ApiResponse(true, "Expenses fetched", {
       expenses,
       stats: {
-        myTotal,
-        partnerTotal,
-        totalSpent,
-        balance, // +ve: Receive, -ve: Pay
+        myTotal: mySharedTotal, // For backward compat with "My Share" display
+        partnerTotal: partnerSharedTotal,
+        totalSpent: totalSharedSpent,
+        balance,
         categoryChartData,
+        // New Stats
+        myPersonalTotal,
+        personalCategoryChartData,
       },
     }),
   );
@@ -77,19 +88,22 @@ const getExpenses = asyncHandler(async (req, res) => {
 
 const addExpense = asyncHandler(async (req, res) => {
   const { id } = req.user;
-  const { description, amount, category } = req.body;
+  const { description, amount, category, type = "Shared" } = req.body; // Default to Shared
 
   const user = await userModel.findById(id);
-  if (!user || !user.partnerId) {
-    return res.status(400).json(new ApiResponse(false, "No partner linked"));
-  }
+  const partnerId = user?.partnerId;
+
+  // Use array of partners based on type
+  // Personal: Just me. Shared: Me + Partner (if exists)
+  const partners = type === "Personal" || !partnerId ? [id] : [id, partnerId];
 
   const expense = await Expense.create({
     description,
     amount,
     category,
+    type,
     paidBy: id,
-    partners: [id, user.partnerId],
+    partners,
     date: new Date(),
   });
 

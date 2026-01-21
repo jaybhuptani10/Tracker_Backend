@@ -14,6 +14,11 @@ const expenseSchema = new mongoose.Schema(
       type: String,
       default: "General",
     },
+    type: {
+      type: String,
+      enum: ["Personal", "Shared"],
+      default: "Shared",
+    },
     paidBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
