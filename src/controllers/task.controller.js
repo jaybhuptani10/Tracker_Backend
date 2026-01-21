@@ -234,13 +234,11 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
   await task.save();
 
   if (isCompleted) {
-    try {
-      await checkAndUpdateStreak(req.user.id, task.date);
-      await sendCompletionNotifications(req.user.id, task);
-    } catch (error) {
-      console.error("Effect Error (Streak/Email):", error);
-      // Don't fail the request if notifications fail
-    }
+    // Run in background without awaiting to speed up response
+    Promise.all([
+      checkAndUpdateStreak(req.user.id, task.date),
+      sendCompletionNotifications(req.user.id, task),
+    ]).catch((err) => console.error("Background Effect Error:", err));
   }
 
   return res
@@ -466,12 +464,11 @@ const toggleSubtask = asyncHandler(async (req, res) => {
   await task.save();
 
   if (parentStatusChanged && task.isCompleted) {
-    try {
-      await checkAndUpdateStreak(req.user.id, task.date);
-      await sendCompletionNotifications(req.user.id, task);
-    } catch (error) {
-      console.error("Effect Error (Streak/Email):", error);
-    }
+    // Run in background without awaiting to speed up response
+    Promise.all([
+      checkAndUpdateStreak(req.user.id, task.date),
+      sendCompletionNotifications(req.user.id, task),
+    ]).catch((err) => console.error("Background Effect Error:", err));
   }
 
   return res.status(200).json(new ApiResponse(true, "Subtask updated", task));
