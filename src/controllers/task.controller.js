@@ -234,9 +234,13 @@ const updateTaskStatus = asyncHandler(async (req, res) => {
   await task.save();
 
   if (isCompleted) {
-    await checkAndUpdateStreak(req.user.id, task.date);
-    // Notifications allow background processing (awaiting for simplicity)
-    await sendCompletionNotifications(req.user.id, task);
+    try {
+      await checkAndUpdateStreak(req.user.id, task.date);
+      await sendCompletionNotifications(req.user.id, task);
+    } catch (error) {
+      console.error("Effect Error (Streak/Email):", error);
+      // Don't fail the request if notifications fail
+    }
   }
 
   return res
@@ -462,8 +466,12 @@ const toggleSubtask = asyncHandler(async (req, res) => {
   await task.save();
 
   if (parentStatusChanged && task.isCompleted) {
-    await checkAndUpdateStreak(req.user.id, task.date);
-    await sendCompletionNotifications(req.user.id, task);
+    try {
+      await checkAndUpdateStreak(req.user.id, task.date);
+      await sendCompletionNotifications(req.user.id, task);
+    } catch (error) {
+      console.error("Effect Error (Streak/Email):", error);
+    }
   }
 
   return res.status(200).json(new ApiResponse(true, "Subtask updated", task));
