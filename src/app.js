@@ -1,8 +1,6 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import "./jobs/reminder.job.js"; // Start Cron Jobs
-
 const app = express();
 
 const allowedOrigins = [
@@ -16,6 +14,7 @@ const corsOptions = {
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.error(`Blocked by CORS: ${origin}`);
       callback(new Error("Not allowed by CORS"));
     }
   },
@@ -25,6 +24,11 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+
+// Only run cron jobs if NOT in Vercel environment (Serverless functions shouldn't run persistent cron)
+if (!process.env.VERCEL) {
+  import("./jobs/reminder.job.js");
+}
 
 // Debug Middleware
 app.use((req, res, next) => {
