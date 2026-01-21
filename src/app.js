@@ -7,6 +7,7 @@ const allowedOrigins = [
   "https://duotrack.vercel.app",
   "http://localhost:5173",
   "http://localhost:3000",
+  "http://localhost:5174",
 ];
 
 const corsOptions = {
@@ -57,6 +58,8 @@ app.use("/notes", noteRouter);
 app.use("/expenses", expenseRouter);
 import analyticsRouter from "./routes/analytics.routes.js";
 app.use("/analytics", analyticsRouter);
+import adminRouter from "./routes/admin.routes.js";
+app.use("/admin", adminRouter);
 
 // Health check route - MUST be after other routes to avoid shadowing
 app.use("/", (req, res) => {

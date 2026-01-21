@@ -54,7 +54,12 @@ const loginUser = asyncHandler(async (req, res) => {
     const pass = bcrypt.compareSync(password, userDoc.password);
     if (pass) {
       jwt.sign(
-        { email: userDoc.email, id: userDoc._id, name: userDoc.name },
+        {
+          email: userDoc.email,
+          id: userDoc._id,
+          name: userDoc.name,
+          isAdmin: userDoc.isAdmin,
+        },
         process.env.JWT_SECRET,
         { expiresIn: "365d" }, // Set to 1 year
         (err, token) => {
@@ -63,7 +68,7 @@ const loginUser = asyncHandler(async (req, res) => {
             .cookie("token", token, {
               httpOnly: true,
               secure: process.env.NODE_ENV === "production",
-              sameSite: "None",
+              sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
               maxAge: 365 * 24 * 60 * 60 * 1000, // 1 Year in milliseconds
             })
             .json({ token, user: userDoc }); // Include token in response
@@ -84,7 +89,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     .clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
     })
     .json({
       message: "Logged out successfully",
