@@ -12,8 +12,10 @@ import {
   unlinkPartner,
   sendNudge,
   markNudgeSeen,
+  uploadAvatar,
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { upload } from "../config/multer.js";
 
 const userRouter = Router();
 userRouter.route("/register").post(registerUser);
@@ -29,5 +31,10 @@ userRouter.route("/unlink-partner").post(verifyJWT, unlinkPartner);
 userRouter.route("/nudge").post(verifyJWT, sendNudge);
 userRouter.route("/nudge/seen").post(verifyJWT, markNudgeSeen);
 userRouter.route("/me").get(verifyJWT, validateToken);
+
+// Avatar Upload
+userRouter
+  .route("/upload-avatar")
+  .post(verifyJWT, upload.single("avatar"), uploadAvatar);
 
 export default userRouter;

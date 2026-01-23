@@ -6,6 +6,9 @@ import userModel from "../models/user.model.js";
 import PartnerRequest from "../models/partnerRequest.model.js";
 import { sendEmail } from "../utils/mailer.js";
 import { getEmailTemplate } from "../utils/emailTemplate.js";
+import { cloudinary } from "../config/multer.js";
+import { Task } from "../models/task.model.js";
+import { WorkSession } from "../models/workSession.model.js";
 
 // Register User
 const registerUser = asyncHandler(async (req, res) => {
@@ -121,8 +124,60 @@ const userProfile = asyncHandler(async (req, res) => {
           message: "User not found",
         });
       }
-      const { name, email, _id, partnerId } = user;
-      res.json({ name, email, _id, partnerId });
+
+      // Calculate user stats
+      const completedTasks = await Task.countDocuments({
+        userId: user._id,
+        isCompleted: true,
+      });
+
+      console.log(`Debug Stats for User ${user._id}:`);
+      console.log(`- Completed Tasks Found: ${completedTasks}`);
+
+      const workSessions = await WorkSession.find({ userId: user._id });
+      console.log(`- Work Sessions Found: ${workSessions.length}`);
+
+      let totalFocusSeconds = 0;
+
+      workSessions.forEach((session) => {
+        let sessionTotal = session.totalSeconds;
+
+        // If this session is currently running, add the elapsed time since last start
+        if (session.isRunning && session.lastStartTime) {
+          const elapsed = Math.floor(
+            (Date.now() - new Date(session.lastStartTime).getTime()) / 1000,
+          );
+          sessionTotal += Math.max(0, elapsed);
+          console.log(
+            `  > Running Session ${session._id}: Base ${session.totalSeconds}s + Elapsed ${elapsed}s = ${sessionTotal}s`,
+          );
+        } else {
+          console.log(`  > Saved Session ${session._id}: ${sessionTotal}s`);
+        }
+
+        totalFocusSeconds += sessionTotal;
+      });
+
+      const totalFocusHours = (totalFocusSeconds / 3600).toFixed(1);
+      console.log(`- Total Focus Hours: ${totalFocusHours}`);
+
+      const { name, email, _id, partnerId, avatar, streak, createdAt } = user;
+      res.json({
+        success: true,
+        user: {
+          name,
+          email,
+          _id,
+          partnerId,
+          avatar,
+          streak,
+          createdAt,
+          stats: {
+            completedTasks,
+            totalFocusHours: parseFloat(totalFocusHours),
+          },
+        },
+      });
     });
   } catch (e) {
     console.error("Server error:", e);
@@ -152,7 +207,39 @@ const validateToken = asyncHandler(async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
-    res.json({ success: true, user });
+    // --- Add Stats Logic ---
+    const completedTasks = await Task.countDocuments({
+      userId: user._id,
+      isCompleted: true,
+    });
+
+    const workSessions = await WorkSession.find({ userId: user._id });
+    let totalFocusSeconds = 0;
+
+    workSessions.forEach((session) => {
+      let sessionTotal = session.totalSeconds;
+      // If this session is currently running, add the elapsed time since last start
+      if (session.isRunning && session.lastStartTime) {
+        const elapsed = Math.floor(
+          (Date.now() - new Date(session.lastStartTime).getTime()) / 1000,
+        );
+        sessionTotal += Math.max(0, elapsed);
+      }
+      totalFocusSeconds += sessionTotal;
+    });
+
+    const totalFocusHours = (totalFocusSeconds / 3600).toFixed(1);
+
+    const userWithStats = {
+      ...user.toObject(),
+      stats: {
+        completedTasks,
+        totalFocusHours: parseFloat(totalFocusHours),
+      },
+    };
+    // -----------------------
+
+    res.json({ success: true, user: userWithStats });
   });
 });
 
@@ -400,6 +487,58 @@ const markNudgeSeen = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(true, "Nudge marked as seen"));
 });
 
+// Upload Avatar
+const uploadAvatar = asyncHandler(async (req, res) => {
+  const { id } = req.user;
+
+  if (!req.file) {
+    return res.status(400).json(new ApiResponse(false, "No file uploaded"));
+  }
+
+  try {
+    // Ensure Cloudinary is configured
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    // Upload to Cloudinary using buffer
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: "duotrack/avatars",
+          transformation: [
+            { width: 500, height: 500, crop: "fill", quality: "auto" },
+          ],
+          format: "jpg", // Convert HEIC and other formats to JPG for browser compatibility
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        },
+      );
+      uploadStream.end(req.file.buffer);
+    });
+
+    // Update user with avatar URL
+    const user = await userModel
+      .findByIdAndUpdate(id, { avatar: result.secure_url }, { new: true })
+      .select("-password");
+
+    return res.status(200).json(
+      new ApiResponse(true, "Avatar uploaded successfully", {
+        avatar: user.avatar,
+      }),
+    );
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(false, "Failed to upload avatar"));
+  }
+});
+
 export {
   logoutUser,
   loginUser,
@@ -412,4 +551,5 @@ export {
   unlinkPartner,
   sendNudge,
   markNudgeSeen,
+  uploadAvatar,
 };

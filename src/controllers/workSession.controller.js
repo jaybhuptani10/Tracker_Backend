@@ -131,21 +131,25 @@ const getTodaySession = asyncHandler(async (req, res) => {
 
   // If timer was running, calculate elapsed time since last start
   // This logic must run for partner too so we see accurate current time!
+  let currentTotalSeconds = session.totalSeconds;
+
   if (session.isRunning && session.lastStartTime) {
     const elapsedSeconds = Math.floor(
       (Date.now() - new Date(session.lastStartTime).getTime()) / 1000,
     );
-    session.totalSeconds += elapsedSeconds;
-    // We only save updates if it's OUR session or if we want to sync status
-    // Usually reading shouldn't mutate, but this "update on read" pattern
-    // helps keep the stored totalSeconds accurate.
-    session.lastStartTime = new Date();
-    await session.save();
+    // Add elapsed time for display purposes only - DON'T save it yet
+    currentTotalSeconds += elapsedSeconds;
   }
+
+  // Return session with calculated total (not saved to DB yet)
+  const responseData = {
+    ...session.toObject(),
+    totalSeconds: currentTotalSeconds,
+  };
 
   return res
     .status(200)
-    .json(new ApiResponse(true, "Session fetched successfully", session));
+    .json(new ApiResponse(true, "Session fetched successfully", responseData));
 });
 
 // Start/Resume timer

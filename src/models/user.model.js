@@ -14,6 +14,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    avatar: {
+      type: String,
+      default: null,
+    },
     partnerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

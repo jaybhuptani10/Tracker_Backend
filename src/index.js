@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+import dotenv from "dotenv"; // Restart trigger
 
 import connectDB from "./db/index.js";
 import app from "./app.js";
