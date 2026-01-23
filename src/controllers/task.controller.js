@@ -411,6 +411,49 @@ const addTaskComment = asyncHandler(async (req, res) => {
 
   await task.save();
 
+  // --- Notification Logic ---
+  try {
+    const sender = await userModel.findById(userId);
+    let recipientId = null;
+
+    if (task.userId.toString() !== userId) {
+      // If commenting on someone else's task, notify them
+      recipientId = task.userId;
+    } else if (task.isShared && sender.partnerId) {
+      // If commenting on my own shared task, notify partner
+      recipientId = sender.partnerId;
+    }
+
+    if (recipientId) {
+      const recipient = await userModel.findById(recipientId);
+      if (recipient && recipient.email) {
+        const emailHtml = getEmailTemplate({
+          title: `New Comment from ${sender.name} 💬`,
+          body: `
+            <p><span class="highlight">${sender.name}</span> commented on a task:</p>
+            <div class="task-card">
+              <p class="task-content">"${task.content}"</p>
+              <hr style="border: 0; border-top: 1px solid #334155; margin: 10px 0;" />
+              <p style="font-style: italic; color: #a5b4fc;">"${text}"</p>
+            </div>
+            <div style="text-align: center; margin-top: 30px;">
+               <a href="${process.env.FRONTEND_URL || "#"}" class="cta-button">Reply</a>
+            </div>
+          `,
+          footerText: "Collaboration is key! 🔑",
+        });
+
+        await sendEmail({
+          to: recipient.email,
+          subject: `💬 ${sender.name} commented on a task`,
+          html: emailHtml,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Comment notification failed:", err);
+  }
+
   return res
     .status(200)
     .json(new ApiResponse(true, "Comment added successfully", task));

@@ -60,6 +60,8 @@ import analyticsRouter from "./routes/analytics.routes.js";
 app.use("/analytics", analyticsRouter);
 import adminRouter from "./routes/admin.routes.js";
 app.use("/admin", adminRouter);
+import cronRouter from "./routes/cron.routes.js";
+app.use("/cron", cronRouter);
 
 // Health check route - MUST be after other routes to avoid shadowing
 app.use("/", (req, res) => {
