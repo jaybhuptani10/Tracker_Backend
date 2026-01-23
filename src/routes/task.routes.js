@@ -6,6 +6,7 @@ import {
   getDashboard,
   deleteTask,
   addTaskComment,
+  deleteTaskComment,
   addSubtask,
   toggleSubtask,
   deleteSubtask,
@@ -22,6 +23,7 @@ taskRouter.route("/:id").patch(updateTask);
 taskRouter.route("/:id/status").patch(updateTaskStatus);
 taskRouter.route("/:id").delete(deleteTask);
 taskRouter.route("/:id/comment").post(addTaskComment);
+taskRouter.route("/:id/comments/:commentId").delete(deleteTaskComment);
 taskRouter.route("/:id/subtasks").post(addSubtask);
 taskRouter
   .route("/:id/subtasks/:subtaskId")

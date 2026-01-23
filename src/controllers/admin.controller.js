@@ -57,3 +57,41 @@ export const getAllUsers = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+
+export const deleteUser = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    // Unlink partner if exists
+    if (user.partnerId) {
+      await User.findByIdAndUpdate(user.partnerId, {
+        $unset: { partnerId: 1 },
+      });
+    }
+
+    // Delete all associated data
+    await Promise.all([
+      Task.deleteMany({ userId: id }),
+      Habit.deleteMany({ userId: id }),
+      Expense.deleteMany({ userId: id }), // Assuming Expense model has userId
+      // Check if Expense has userId or if it handles shared differently.
+      // Based on previous files, Expense has userId.
+      WorkSession.deleteMany({ userId: id }),
+    ]);
+
+    await User.findByIdAndDelete(id);
+
+    res
+      .status(200)
+      .json({ success: true, message: "User deleted successfully" });
+  } catch (error) {
+    console.error("Delete User Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

@@ -532,6 +532,31 @@ const deleteSubtask = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(true, "Subtask deleted", task));
 });
 
+const deleteTaskComment = asyncHandler(async (req, res) => {
+  const { id, commentId } = req.params;
+
+  const task = await Task.findById(id);
+  if (!task) {
+    return res.status(404).json(new ApiResponse(false, "Task not found"));
+  }
+
+  // Filter out the comment
+  const initialLength = task.comments.length;
+  task.comments = task.comments.filter(
+    (comment) => comment._id.toString() !== commentId,
+  );
+
+  if (task.comments.length === initialLength) {
+    return res.status(404).json(new ApiResponse(false, "Comment not found"));
+  }
+
+  await task.save();
+
+  return res
+    .status(200)
+    .json(new ApiResponse(true, "Comment deleted successfully", task));
+});
+
 export {
   createTask,
   updateTask,
@@ -539,6 +564,7 @@ export {
   getDashboard,
   deleteTask,
   addTaskComment,
+  deleteTaskComment,
   addSubtask,
   toggleSubtask,
   deleteSubtask,
