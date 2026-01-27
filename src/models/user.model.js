@@ -27,6 +27,10 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    highestStreak: {
+      type: Number,
+      default: 0,
+    },
     lastStreakDate: {
       type: Date,
       default: null,

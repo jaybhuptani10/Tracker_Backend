@@ -18,8 +18,8 @@ const connectDB = async () => {
     console.error("MongoDB connection error : ", error);
     // process.exit(1); // Standard for containers, but bad for frequent restarts in Serverless.
     // Letting it throw or just return allows the app to potentially handle the error or log it better via the HTTP response.
-    // However, without DB, the app is useless. We will keep exit but the timeout above helps it exit faster.
-    process.exit(1);
+    // process.exit(1);
+    console.log("Proceeding without DB connection...");
   }
 };
 export default connectDB;

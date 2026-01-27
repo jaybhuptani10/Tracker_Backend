@@ -54,8 +54,14 @@ const checkAndUpdateStreak = async (userId, taskDate) => {
     }
   }
 
+  // Update highest streak if current streak is higher
+  const highestStreak = user.highestStreak || 0;
+  const newHighestStreak =
+    newStreak > highestStreak ? newStreak : highestStreak;
+
   await userModel.findByIdAndUpdate(userId, {
     streak: newStreak,
+    highestStreak: newHighestStreak,
     lastStreakDate: new Date(),
   });
 };

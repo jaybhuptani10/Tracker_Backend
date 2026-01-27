@@ -83,6 +83,11 @@ const loginUser = asyncHandler(async (req, res) => {
         message: "Invalid email or password",
       });
     }
+  } else {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid email or password",
+    });
   }
 });
 
@@ -176,6 +181,7 @@ const userProfile = asyncHandler(async (req, res) => {
             completedTasks,
             totalFocusHours: parseFloat(totalFocusHours),
           },
+          highestStreak: user.highestStreak || 0, // Ensure backward compatibility
         },
       });
     });

@@ -58,6 +58,16 @@ const startServer = async () => {
         }
       });
 
+      socket.on("send_interaction", ({ partnerId, type, message }) => {
+        if (partnerId) {
+          io.to(partnerId).emit("receive_interaction", {
+            type,
+            message,
+            from: "Partner", // In a real app we'd fetch the name, but simplistic for now
+          });
+        }
+      });
+
       socket.on("disconnect", () => {
         if (socket.partnerId) {
           io.to(socket.partnerId).emit("user_offline", {
