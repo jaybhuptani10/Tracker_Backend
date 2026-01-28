@@ -186,7 +186,9 @@ To start the server:
 - **Auth Required:** ✅ Yes
 - **Query Params:**
   - `date`: `YYYY-MM-DD` (Optional, defaults to today)
-  - `viewMode`: `daily` | `weekly` (Optional)
+  - `viewMode`: `daily` | `weekly` | `monthly` (Optional)
+
+**Note:** When `viewMode` is `daily` and the date is **Today**, the response will automatically include **incomplete tasks from previous days** (Overdue Tasks) to ensure nothing is missed.
 
 **Success Response (200 OK):**
 
@@ -200,7 +202,7 @@ To start the server:
         "content": "Finish report",
         "isCompleted": false,
         "category": "Work",
-        "date": "2024-01-20T..."
+        "date": "2024-01-20T..." // Might be past date if overdue
       }
     ],
     "partnerTasks": [],
@@ -208,6 +210,30 @@ To start the server:
   }
 }
 ```
+
+---
+
+### 3. 💰 Expense Tracking
+
+#### **Get/Add Expenses**
+
+- **URL:** `/expenses`
+- **Method:** `GET` | `POST`
+- **Auth Required:** ✅ Yes
+- **GET Params:** `date` (YYYY-MM-DD)
+- **POST Body:** `{ "amount": 50, "category": "Food", "description": "Lunch" }`
+
+### 4. 📔 Journaling
+
+#### **Get/Add Journal Entries**
+
+- **URL:** `/journal`
+- **Method:** `GET` | `POST`
+- **Auth Required:** ✅ Yes
+- **GET Params:** `date` (YYYY-MM-DD)
+- **POST Body:** `{ "content": "Today was a good day...", "mood": "Happy", "date": "2024-01-20" }`
+
+---
 
 #### **Create Task**
 
@@ -301,7 +327,7 @@ To start the server:
 
 ---
 
-### 3. 🔥 Habit Tracking
+### 5. 🔥 Habit Tracking
 
 #### **Get All Habits**
 
@@ -355,7 +381,7 @@ To start the server:
 
 ---
 
-### 4. 📊 Analytics
+### 6. 📊 Analytics
 
 #### **Get Heatmap Data**
 
@@ -395,7 +421,7 @@ To start the server:
 
 ---
 
-### 5. 📧 Email & Notifications
+### 7. 📧 Email & Notifications
 
 #### **Send Nudge to Partner**
 

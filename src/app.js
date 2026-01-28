@@ -64,6 +64,8 @@ import adminRouter from "./routes/admin.routes.js";
 app.use("/admin", adminRouter);
 import cronRouter from "./routes/cron.routes.js";
 app.use("/cron", cronRouter);
+import aiRouter from "./routes/ai.routes.js";
+app.use("/ai", aiRouter);
 
 // Health check route - MUST be after other routes to avoid shadowing
 app.use("/", (req, res) => {

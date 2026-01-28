@@ -26,6 +26,14 @@ const taskSchema = new mongoose.Schema(
       enum: ["Work", "Personal", "Workout", "Study", "Other"],
       default: "Other",
     },
+    startTime: {
+      type: String, // Format: "HH:mm" (24h)
+      default: null,
+    },
+    duration: {
+      type: Number, // In minutes
+      default: 60,
+    },
     comments: [
       {
         text: String,

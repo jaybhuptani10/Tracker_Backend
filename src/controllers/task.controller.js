@@ -130,8 +130,16 @@ const sendCompletionNotifications = async (userId, task) => {
 };
 
 const createTask = asyncHandler(async (req, res) => {
-  const { content, category, date, isRecurring, recurrence, isShared } =
-    req.body;
+  const {
+    content,
+    category,
+    date,
+    isRecurring,
+    recurrence,
+    isShared,
+    startTime,
+    duration,
+  } = req.body;
   const { id } = req.user;
 
   if (!content) {
@@ -176,6 +184,8 @@ const createTask = asyncHandler(async (req, res) => {
           isRecurring: true,
           recurrence,
           isShared: isShared || false,
+          startTime,
+          duration,
         });
       }
 
@@ -201,9 +211,11 @@ const createTask = asyncHandler(async (req, res) => {
       content,
       category,
       date: taskDate,
-      userId: id,
       isRecurring: false,
       isShared: Boolean(isShared),
+      startTime,
+      duration,
+      userId: id,
     });
 
     return res
@@ -374,6 +386,8 @@ const updateTask = asyncHandler(async (req, res) => {
 
   if (content) task.content = content;
   if (category) task.category = category;
+  if (req.body.hasOwnProperty("startTime")) task.startTime = req.body.startTime;
+  if (req.body.hasOwnProperty("duration")) task.duration = req.body.duration;
   if (req.body.hasOwnProperty("isRecurring")) {
     task.isRecurring = req.body.isRecurring;
 
