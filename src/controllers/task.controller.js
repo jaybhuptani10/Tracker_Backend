@@ -292,14 +292,33 @@ const getDashboard = asyncHandler(async (req, res) => {
   // Sorting: Daily uses manual position, others use date then position
   const sortCriteria =
     viewMode === "daily"
-      ? { position: 1, createdAt: -1 }
+      ? { isCompleted: 1, position: 1, createdAt: -1 } // Incomplete first
       : { date: 1, position: 1 };
 
-  // Fetch user's own tasks for the date range
+  // Check if the requested date is effectively "Today"
+  const now = new Date();
+  const isToday =
+    startOfRange.getDate() === now.getDate() &&
+    startOfRange.getMonth() === now.getMonth() &&
+    startOfRange.getFullYear() === now.getFullYear();
+
+  let dateFilter;
+  if (viewMode === "daily" && isToday) {
+    dateFilter = {
+      $or: [
+        { date: { $gte: startOfRange, $lte: endOfRange } },
+        { date: { $lt: startOfRange }, isCompleted: false },
+      ],
+    };
+  } else {
+    dateFilter = { date: { $gte: startOfRange, $lte: endOfRange } };
+  }
+
+  // Fetch user's own tasks for the date range (plus overdue if today)
   const myTasks = await Task.find({
     userId: id,
     isShared: { $ne: true },
-    date: { $gte: startOfRange, $lte: endOfRange },
+    ...dateFilter,
   }).sort(sortCriteria);
 
   let partnerTasks = [];
@@ -310,15 +329,15 @@ const getDashboard = asyncHandler(async (req, res) => {
     partnerTasks = await Task.find({
       userId: user.partnerId,
       isShared: { $ne: true },
-      date: { $gte: startOfRange, $lte: endOfRange },
+      ...dateFilter,
     }).sort(sortCriteria);
 
     // Fetch shared tasks (Common Goals)
     sharedTasks = await Task.find({
       isShared: true,
       $or: [{ userId: id }, { userId: user.partnerId }],
-      date: { $gte: startOfRange, $lte: endOfRange },
-    }).sort({ createdAt: -1 });
+      ...dateFilter,
+    }).sort({ isCompleted: 1, createdAt: -1 });
 
     // Fetch partner details
     const partnerUser = await userModel

@@ -58,6 +58,8 @@ app.use("/notes", noteRouter);
 app.use("/expenses", expenseRouter);
 import analyticsRouter from "./routes/analytics.routes.js";
 app.use("/analytics", analyticsRouter);
+import journalRouter from "./routes/journal.routes.js";
+app.use("/journal", journalRouter);
 import adminRouter from "./routes/admin.routes.js";
 app.use("/admin", adminRouter);
 import cronRouter from "./routes/cron.routes.js";
