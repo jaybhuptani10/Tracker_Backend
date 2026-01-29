@@ -194,6 +194,7 @@ const userProfile = asyncHandler(async (req, res) => {
     });
   }
 });
+
 const validateToken = asyncHandler(async (req, res) => {
   const token =
     req.headers.authorization && req.headers.authorization.split(" ")[1]; // Get token from 'Authorization' header
@@ -493,6 +494,64 @@ const markNudgeSeen = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(true, "Nudge marked as seen"));
 });
 
+// Upload Image (Generic)
+const uploadImage = asyncHandler(async (req, res) => {
+  console.log("--> uploadImage controller entered");
+  const file = req.file || (req.files && req.files[0]);
+
+  if (!file) {
+    console.log("No file received in request");
+    return res.status(400).json(new ApiResponse(false, "No file uploaded"));
+  }
+
+  console.log(
+    `Processing file: ${file.originalname}, Size: ${file.size} bytes, Type: ${file.mimetype}`,
+  );
+
+  try {
+    // Ensure Cloudinary is configured
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    console.log("Starting Cloudinary upload stream...");
+
+    // Upload to Cloudinary using buffer
+    const result = await new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: "duotrack/moments",
+          transformation: [{ width: 1200, crop: "limit", quality: "auto" }],
+          format: "jpg", // Convert to JPG to ensure compatibility (fixes stuck HEIC uploads)
+        },
+        (error, result) => {
+          if (error) {
+            console.error("Cloudinary Stream Error:", error);
+            reject(error);
+          } else {
+            console.log("Cloudinary Upload Success:", result.secure_url);
+            resolve(result);
+          }
+        },
+      );
+      uploadStream.end(file.buffer);
+    });
+
+    return res.status(200).json({
+      success: true,
+      url: result.secure_url,
+      message: "Image uploaded successfully",
+    });
+  } catch (error) {
+    console.error("Cloudinary upload catch block:", error);
+    return res
+      .status(500)
+      .json(new ApiResponse(false, "Failed to upload image"));
+  }
+});
+
 // Upload Avatar
 const uploadAvatar = asyncHandler(async (req, res) => {
   const { id } = req.user;
@@ -558,4 +617,5 @@ export {
   sendNudge,
   markNudgeSeen,
   uploadAvatar,
+  uploadImage,
 };
